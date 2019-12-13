@@ -1,6 +1,9 @@
+# -*- coding: utf-8 -*-
 import os
 import sys
 import types
+import base64
+import bz2
 
 PINLINED_DEFAULT_PACKAGE = '%{DEFAULT_PACKAGE}'
 PINLINER_MODULE_NAME = 'pinliner_loader'
@@ -15,6 +18,7 @@ import os
 import struct
 import sys
 import types
+import io
 
 
 class InlinerImporter(object):
@@ -37,32 +41,18 @@ class InlinerImporter(object):
 
     def get_source(self, fullname):
         __, start, end, ts = self.data[fullname]
-        with open(self.datafile) as datafile:
+        with io.BytesIO(self.datafile) as datafile:
             datafile.seek(start)
             code = datafile.read(end - start)
         return code
 
     def get_code(self, fullname, filename):
         py_ts = self.data[fullname][3]
-        try:
-            with open(fullname + '.pyc', 'rb') as pyc:
-                pyc_magic = pyc.read(4)
-                pyc_ts = struct.unpack('<I', pyc.read(4))[0]
-                if pyc_magic == imp.get_magic() and pyc_ts == py_ts:
-                    return marshal.load(pyc)
-        except:
-            pass
+
 
         code = self.get_source(fullname)
         compiled_code = compile(code, filename, 'exec')
 
-        try:
-            with open(fullname + '.pyc', 'wb') as pyc:
-                pyc.write(imp.get_magic())
-                pyc.write(struct.pack('<I', py_ts))
-                marshal.dump(compiled_code, pyc)
-        except:
-            pass
         return compiled_code
 
     def load_module(self, fullname):
@@ -96,7 +86,7 @@ class InlinerImporter(object):
         return module
 ''' % {'loader_version': loader_version}
 
-${CONTENTS}
+package_content_compress=${CONTENTS}
 
 def prepare_package():
     # Loader's module name changes with each major version to be able to have
@@ -138,7 +128,7 @@ def prepare_package():
         else:
             set_excepthook = FORCE_EXC_HOOK
 
-        importer = module.InlinerImporter(inliner_packages, filename,
+        importer = module.InlinerImporter(inliner_packages, package_content_compress,
                                           set_excepthook)
         sys.meta_path.append(importer)
 

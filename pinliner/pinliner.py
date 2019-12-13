@@ -3,15 +3,21 @@
 from __future__ import absolute_import
 
 import argparse
+import io
 import json
 import os
-from pinliner import __version__
+
 import sys
 
 
 TEMPLATE_FILE = 'importer.template'
 TEMPLATE_PATTERN = '${CONTENTS}'
 
+def outputcode(cfg, what, newline=True):
+    cfg.outbuf.write(what)
+    if newline:
+        if newline:
+            cfg.outbut.write(os.linesep)
 
 def output(cfg, what, newline=True):
     # We need indentation for PEP8
@@ -22,9 +28,9 @@ def output(cfg, what, newline=True):
 
 def process_file(cfg, base_dir, package_path):
     if cfg.tagging:
-        output(cfg, '<tag:' + package_path + '>')
+        outputcode(cfg, '<tag:' + package_path + '>')
     path = os.path.splitext(package_path)[0].replace(os.path.sep, '.')
-    package_start = cfg.outfile.tell()
+    package_start = cfg.outbuf.tell()
     full_path = os.path.join(base_dir, package_path)
     with open(full_path, 'r') as f:
         # Read the whole file
@@ -32,8 +38,9 @@ def process_file(cfg, base_dir, package_path):
 
         # Insert escape character before ''' since we'll be using ''' to insert
         # the code as a string
-        output(cfg, code.replace("'''", r"\'''"), newline=cfg.tagging)
-    package_end = cfg.outfile.tell()
+        # Todo figure out why broken
+        outputcode(cfg, code.replace("'''", r'"""'), newline=cfg.tagging)
+    package_end = cfg.outbuf.tell()
     is_package = 1 if path.endswith('__init__') else 0
     if is_package:
         path = path[:-9]
@@ -69,16 +76,23 @@ def process_directory(cfg, base_dir, package_path):
             files.extend(process_directory(cfg, base_dir, next_path))
     return files
 
+import bz2
+import base64
 
 def process_files(cfg):
     # template would look better as a context manager
     postfix = template(cfg)
     files = []
-    output(cfg, "'''")
+    # output(cfg, "'''")
     for package_path in cfg.packages:
         base_dir, module_name = os.path.split(package_path)
         files.extend(process_directory(cfg, base_dir, module_name))
-    output(cfg, "'''")
+    # compress outbuf
+    old = cfg.outbuf.tell()
+    cfg.outbuf.seek(0)
+    b64_compressed_str = base64.encodestring(bz2.compress(cfg.outbuf.read()))
+    output(cfg, "bz2.decompress(base64.decodestring('''{}'''))".format(b64_compressed_str))
+    # output(cfg, "'''")
 
     # Transform the list into a dictionary
     inliner_packages = {data[0]: data[1:] for data in files}
@@ -139,14 +153,14 @@ normal package.  Modules will also behave as usual.
     By default there is no visible separation between the different modules'
 source code, but one can be enabled for clarity with option --tag, which will
 include a newline and a <tag:file_path> tag before each of the source files.
-""" % __version__
+""" % "0.2.1"
     general_epilog = None
 
     parser = MyParser(description=general_description,
                       epilog=general_epilog, argument_default='',
                       formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('packages', nargs='+', help='Packages to inline.')
-    parser.add_argument('--version', action='version', version=__version__)
+    parser.add_argument('--version', action='version', version="0.2.1")
     parser.add_argument('-o', '--outfile', nargs='?',
                         type=argparse.FileType('w'),
                         default=sys.stdout, help='Output file.')
@@ -170,6 +184,7 @@ include a newline and a <tag:file_path> tag before each of the source files.
         # files default is none (act as a bundle).
         def_file = cfg.packages[0] if len(cfg.packages) == 1 else ''
         cfg.default_package = def_file
+        cfg.outbuf = io.BytesIO()
     return cfg
 
 
