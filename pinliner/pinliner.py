@@ -90,8 +90,8 @@ def process_files(cfg):
     # compress outbuf
     old = cfg.outbuf.tell()
     cfg.outbuf.seek(0)
-    b64_compressed_str = base64.encodestring(bz2.compress(cfg.outbuf.read()))
-    output(cfg, "bz2.decompress(base64.decodestring('''{}'''))".format(b64_compressed_str))
+    b64_compressed_str = base64.encodestring(bz2.compress(cfg.outbuf.read().encode('utf8')))
+    output(cfg, "bz2.decompress(base64.decodestring({}))".format(b64_compressed_str))
     # output(cfg, "'''")
 
     # Transform the list into a dictionary
@@ -184,7 +184,7 @@ include a newline and a <tag:file_path> tag before each of the source files.
         # files default is none (act as a bundle).
         def_file = cfg.packages[0] if len(cfg.packages) == 1 else ''
         cfg.default_package = def_file
-        cfg.outbuf = io.BytesIO()
+        cfg.outbuf = io.StringIO()
     return cfg
 
 
