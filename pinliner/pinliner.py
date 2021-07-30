@@ -90,8 +90,8 @@ def process_files(cfg):
     # compress outbuf
     old = cfg.outbuf.tell()
     cfg.outbuf.seek(0)
-    b64_compressed_str = base64.encodestring(bz2.compress(cfg.outbuf.read().encode('utf8')))
-    output(cfg, "bz2.decompress(base64.decodestring({}))".format(b64_compressed_str))
+    b64_compressed_str = base64.b64encode(bz2.compress(cfg.outbuf.read().encode('utf8')))
+    output(cfg, "bz2.decompress(base64.b64decode({}))".format(b64_compressed_str))
     # output(cfg, "'''")
 
     # Transform the list into a dictionary
